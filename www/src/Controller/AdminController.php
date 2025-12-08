@@ -423,7 +423,7 @@ class AdminController extends Controller
         // Obtenir la connexion PDO pour la mise à jour directe
         $pdo = $this->em->getConnection()->getPdo();
         
-        // Mettre à jour le jeu directement avec SQL (Doctrine ne détecte pas les changements)
+        // Mettre à jour le jeu directement avec SQL (Doctrine ne détecte étonnamment pas les changements)
         $stmtUpdateGame = $pdo->prepare("
             UPDATE games 
             SET title = ?, description = ?, price = ?, stock = ? 
@@ -436,8 +436,6 @@ class AdminController extends Controller
             (int) $stock,
             $game->id
         ]);
-        
-        error_log("Jeu mis à jour avec SQL: $title");
         
         // Supprimer les anciennes relations de genres
         $stmtDeleteGenres = $pdo->prepare("DELETE FROM games_genres WHERE game_id = ?");
