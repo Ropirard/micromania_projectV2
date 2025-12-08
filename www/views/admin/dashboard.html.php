@@ -30,7 +30,7 @@
         <section>
                 <a href="/historique" class="text-xl text-gray-900 font-semibold mb-4 hover:text-indigo-600 block"> Historique des commandes des utilisateurs</a>
                 <a href="/wishlist" class="text-xl text-gray-500 mb-6 block"> Logs </a>
-                <a href="/catalogue" class="text-xl text-gray-500 mb-6 hover:text-indigo-100 block"> Catalogue </a>
+                <a href="/catalogue" class="text-xl text-gray-500 mb-6 hover:text-indigo-100 block"> Vue Catalogue </a>
             <!-- Bloc supplémentaire -->
             <div class="mt-16">
                 <h3 class="text-lg font-semibold text-gray-800 mb-2">Clicker</h3>
@@ -43,7 +43,7 @@
 
         <!-- Section centre -->
         <section>
-            <h1 class="text-xs">En ce qui concerne les modifications de jeux, clique plutôt</h1><a class="text-xs" href="/admin/edit/1">ici</a>
+            <h1 class="text-xs">En ce qui concerne les modifications de jeux, clique plutôt</h1><a class="text-xs" href="/admin/edit/list">ici</a>
             <h1>Clique sur ce <a href="/admin/create">bouton</a> pour ajouter un jeu</h1>
             <button class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold transition-colors h-screen w-80">
                 Jeu ?

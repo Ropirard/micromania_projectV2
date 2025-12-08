@@ -153,4 +153,317 @@ class AdminController extends Controller
             'user' => $user
         ]);
     }
+    
+    /**
+     * Page catalogue
+     */
+    #[Route(path: '/catalogue', methods: ['GET'], name: 'admin.catalogue', middleware: [new AuthMiddleware()])]
+    public function catalogue(): Response
+    {
+        // Vérifier que l'utilisateur est admin
+        $user = $this->auth->user();
+        if (!$user || $user->role !== 'admin') {
+            return $this->redirect('/');
+        }
+        
+        // Récupérer tous les jeux
+        $gameRepository = $this->em->getRepository(Game::class);
+        $games = $gameRepository->findAll();
+        
+        // Charger manuellement les genres et plateformes pour chaque jeu
+        $pdo = $this->em->getConnection()->getPdo();
+        $genreRepository = $this->em->getRepository(Genre::class);
+        $plateformRepository = $this->em->getRepository(Plateform::class);
+        
+        foreach ($games as $game) {
+            // Récupérer les genres du jeu
+            $stmtGenres = $pdo->prepare("
+                SELECT g.* FROM genres g
+                INNER JOIN games_genres gg ON g.id = gg.genre_id
+                WHERE gg.game_id = ?
+            ");
+            $stmtGenres->execute([$game->id]);
+            $gameGenresData = $stmtGenres->fetchAll(\PDO::FETCH_ASSOC);
+            
+            $game->genres = [];
+            foreach ($gameGenresData as $genreData) {
+                $genre = $genreRepository->find($genreData['id']);
+                if ($genre) {
+                    $game->genres[] = $genre;
+                }
+            }
+            
+            // Récupérer les plateformes du jeu
+            $stmtPlateforms = $pdo->prepare("
+                SELECT p.* FROM plateforms p
+                INNER JOIN games_plateforms gp ON p.id = gp.plateform_id
+                WHERE gp.game_id = ?
+            ");
+            $stmtPlateforms->execute([$game->id]);
+            $gamePlateformsData = $stmtPlateforms->fetchAll(\PDO::FETCH_ASSOC);
+            
+            $game->plateforms = [];
+            foreach ($gamePlateformsData as $plateformData) {
+                $plateform = $plateformRepository->find($plateformData['id']);
+                if ($plateform) {
+                    $game->plateforms[] = $plateform;
+                }
+            }
+        }
+        
+        return $this->view('admin/catalogue', [
+            'title' => 'Catalogue',
+            'csrf_token' => $_SESSION['_csrf_token'] ?? '',
+            'user' => $user,
+            'games' => $games
+        ]);
+    }
+    
+    /**
+     * Page de listing des jeux à éditer (catalogue_edit)
+     */
+    #[Route(path: '/admin/edit/list', methods: ['GET'], name: 'admin.games.list', middleware: [new AuthMiddleware()])]
+    public function listGames(): Response
+    {
+        // Vérifier que l'utilisateur est admin
+        $user = $this->auth->user();
+        if (!$user || $user->role !== 'admin') {
+            return $this->redirect('/');
+        }
+        
+        // Récupérer tous les jeux avec leurs relations
+        $gameRepository = $this->em->getRepository(Game::class);
+        $games = $gameRepository->findAll();
+        
+        // Charger manuellement les genres et plateformes pour chaque jeu
+        $pdo = $this->em->getConnection()->getPdo();
+        $genreRepository = $this->em->getRepository(Genre::class);
+        $plateformRepository = $this->em->getRepository(Plateform::class);
+        
+        foreach ($games as $game) {
+            // Récupérer les genres du jeu
+            $stmtGenres = $pdo->prepare("
+                SELECT g.* FROM genres g
+                INNER JOIN games_genres gg ON g.id = gg.genre_id
+                WHERE gg.game_id = ?
+            ");
+            $stmtGenres->execute([$game->id]);
+            $gameGenresData = $stmtGenres->fetchAll(\PDO::FETCH_ASSOC);
+            
+            $game->genres = [];
+            foreach ($gameGenresData as $genreData) {
+                $genre = $genreRepository->find($genreData['id']);
+                if ($genre) {
+                    $game->genres[] = $genre;
+                }
+            }
+            
+            // Récupérer les plateformes du jeu
+            $stmtPlateforms = $pdo->prepare("
+                SELECT p.* FROM plateforms p
+                INNER JOIN games_plateforms gp ON p.id = gp.plateform_id
+                WHERE gp.game_id = ?
+            ");
+            $stmtPlateforms->execute([$game->id]);
+            $gamePlateformsData = $stmtPlateforms->fetchAll(\PDO::FETCH_ASSOC);
+            
+            $game->plateforms = [];
+            foreach ($gamePlateformsData as $plateformData) {
+                $plateform = $plateformRepository->find($plateformData['id']);
+                if ($plateform) {
+                    $game->plateforms[] = $plateform;
+                }
+            }
+        }
+        
+        // Récupérer tous les genres et plateformes pour les filtres
+        $genres = $genreRepository->findAll();
+        $plateforms = $plateformRepository->findAll();
+        
+        return $this->view('admin/catalogue_edit', [
+            'title' => 'Édition du catalogue',
+            'csrf_token' => $_SESSION['_csrf_token'] ?? '',
+            'user' => $user,
+            'games' => $games,
+            'genres' => $genres,
+            'plateforms' => $plateforms
+        ]);
+    }
+    
+    /**
+     * Page d'édition d'un jeu spécifique
+     */
+    #[Route(path: '/admin/game/edit/{id}', methods: ['GET'], name: 'admin.game.edit', middleware: [new AuthMiddleware()])]
+    public function editGameForm(int $id): Response
+    {
+        // Vérifier que l'utilisateur est admin
+        $user = $this->auth->user();
+        if (!$user || $user->role !== 'admin') {
+            return $this->redirect('/');
+        }
+        
+        // Récupérer le jeu à éditer
+        $gameRepository = $this->em->getRepository(Game::class);
+        $game = $gameRepository->find($id);
+        
+        if (!$game) {
+            return $this->redirect('/admin/edit/list?error=Jeu non trouvé');
+        }
+        
+        // Charger manuellement les genres et plateformes du jeu depuis la base
+        $pdo = $this->em->getConnection()->getPdo();
+        
+        // Récupérer les genres du jeu
+        $stmtGenres = $pdo->prepare("
+            SELECT g.* FROM genres g
+            INNER JOIN games_genres gg ON g.id = gg.genre_id
+            WHERE gg.game_id = ?
+        ");
+        $stmtGenres->execute([$id]);
+        $gameGenresData = $stmtGenres->fetchAll(\PDO::FETCH_ASSOC);
+        
+        // Convertir en objets Genre
+        $genreRepository = $this->em->getRepository(Genre::class);
+        $game->genres = [];
+        foreach ($gameGenresData as $genreData) {
+            $genre = $genreRepository->find($genreData['id']);
+            if ($genre) {
+                $game->genres[] = $genre;
+            }
+        }
+        
+        // Récupérer les plateformes du jeu
+        $stmtPlateforms = $pdo->prepare("
+            SELECT p.* FROM plateforms p
+            INNER JOIN games_plateforms gp ON p.id = gp.plateform_id
+            WHERE gp.game_id = ?
+        ");
+        $stmtPlateforms->execute([$id]);
+        $gamePlateformsData = $stmtPlateforms->fetchAll(\PDO::FETCH_ASSOC);
+        
+        // Convertir en objets Plateform
+        $plateformRepository = $this->em->getRepository(Plateform::class);
+        $game->plateforms = [];
+        foreach ($gamePlateformsData as $plateformData) {
+            $plateform = $plateformRepository->find($plateformData['id']);
+            if ($plateform) {
+                $game->plateforms[] = $plateform;
+            }
+        }
+        
+        // Récupérer tous les genres et plateformes
+        $genres = $genreRepository->findAll();
+        $plateforms = $plateformRepository->findAll();
+        
+        // S'assurer qu'un token CSRF existe
+        if (!isset($_SESSION['_csrf_token'])) {
+            $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+        }
+        
+        $response = $this->view('admin/edit', [
+            'title' => 'Modifier un jeu',
+            'csrf_token' => $_SESSION['_csrf_token'] ?? '',
+            'user' => $user,
+            'game' => $game,
+            'genres' => $genres,
+            'plateforms' => $plateforms
+        ]);
+        
+        // Ajouter des headers pour empêcher le cache
+        $response->setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        $response->setHeader('Pragma', 'no-cache');
+        $response->setHeader('Expires', '0');
+        
+        return $response;
+    }
+    
+    /**
+     * Mise à jour d'un jeu (POST)
+     */
+    #[Route(path: '/admin/game/update/{id}', methods: ['POST'], name: 'admin.game.update', middleware: [new AuthMiddleware()])]
+    public function updateGame(int $id, Request $request): Response
+    {
+        // Vérifier que l'utilisateur est admin
+        $user = $this->auth->user();
+        if (!$user || $user->role !== 'admin') {
+            return $this->redirect('/');
+        }
+        
+        // Récupérer le jeu à modifier
+        $gameRepository = $this->em->getRepository(Game::class);
+        $game = $gameRepository->find($id);
+        
+        if (!$game) {
+            return $this->redirect('/admin/edit/list?error=Jeu non trouvé');
+        }
+        
+        // Récupérer les données du formulaire
+        $title = $request->getPost('title');
+        $description = $request->getPost('description');
+        $price = $request->getPost('price');
+        $stock = $request->getPost('stock');
+        $genreIds = $request->getPost('genres', []);
+        $plateformIds = $request->getPost('plateforms', []);
+        
+        // Debug: Logger les données reçues
+        error_log("=== MISE À JOUR JEU ID: $id ===");
+        error_log("Titre reçu: " . ($title ?? 'NULL'));
+        error_log("Description: " . ($description ?? 'NULL'));
+        error_log("Prix: " . ($price ?? 'NULL'));
+        error_log("Stock: " . ($stock ?? 'NULL'));
+        error_log("Genres: " . json_encode($genreIds));
+        error_log("Plateformes: " . json_encode($plateformIds));
+        
+        // Validation basique
+        if (empty($title) || empty($description) || empty($price) || empty($stock)) {
+            error_log("ERREUR: Champs manquants");
+            return $this->redirect('/admin/game/edit/' . $id . '?error=Tous les champs sont requis');
+        }
+        
+        // Obtenir la connexion PDO pour la mise à jour directe
+        $pdo = $this->em->getConnection()->getPdo();
+        
+        // Mettre à jour le jeu directement avec SQL (Doctrine ne détecte pas les changements)
+        $stmtUpdateGame = $pdo->prepare("
+            UPDATE games 
+            SET title = ?, description = ?, price = ?, stock = ? 
+            WHERE id = ?
+        ");
+        $stmtUpdateGame->execute([
+            $title,
+            $description,
+            (float) $price,
+            (int) $stock,
+            $game->id
+        ]);
+        
+        error_log("Jeu mis à jour avec SQL: $title");
+        
+        // Supprimer les anciennes relations de genres
+        $stmtDeleteGenres = $pdo->prepare("DELETE FROM games_genres WHERE game_id = ?");
+        $stmtDeleteGenres->execute([$game->id]);
+        
+        // Ajouter les nouveaux genres
+        if (!empty($genreIds)) {
+            $stmtGenre = $pdo->prepare("INSERT INTO games_genres (game_id, genre_id) VALUES (?, ?)");
+            foreach ($genreIds as $genreId) {
+                $stmtGenre->execute([$game->id, (int) $genreId]);
+            }
+        }
+        
+        // Supprimer les anciennes relations de plateformes
+        $stmtDeletePlateforms = $pdo->prepare("DELETE FROM games_plateforms WHERE game_id = ?");
+        $stmtDeletePlateforms->execute([$game->id]);
+        
+        // Ajouter les nouvelles plateformes
+        if (!empty($plateformIds)) {
+            $stmtPlateform = $pdo->prepare("INSERT INTO games_plateforms (game_id, plateform_id) VALUES (?, ?)");
+            foreach ($plateformIds as $plateformId) {
+                $stmtPlateform->execute([$game->id, (int) $plateformId]);
+            }
+        }
+        
+        // Rediriger vers la liste avec un message de succès
+        return $this->redirect('/admin/edit/list?success=Jeu mis à jour avec succès');
+    }
 }
