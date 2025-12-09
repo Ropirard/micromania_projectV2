@@ -1,0 +1,927 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * Script CLI pour gérer les migrations Doctrine
+ * 
+ * Ce script cherche automatiquement la configuration de la base de données
+ * dans les emplacements standards ou peut utiliser une variable d'environnement.
+ * 
+ * Usage:
+ *   php bin/doctrine-migrate generate [EntityClass]  # Génère une migration
+ *   php bin/doctrine-migrate migrate                  # Exécute les migrations en attente
+ *   php bin/doctrine-migrate status                  # Affiche le statut
+ * 
+ * Configuration:
+ *   Le script cherche la config dans (dans cet ordre):
+ *   1. Variable d'environnement DOCTRINE_CONFIG (chemin vers fichier PHP)
+ *   2. config/database.php (depuis le répertoire courant)
+ *   3. ../config/database.php (depuis le répertoire courant)
+ *   4. Variables d'environnement DB_* (DB_HOST, DB_NAME, DB_USER, DB_PASSWORD)
+ */
+
+// Trouver le répertoire du package
+$packageDir = __DIR__;
+$autoloadPath = $packageDir . '/../vendor/autoload.php';
+
+// Si on est dans vendor, utiliser l'autoload du package parent
+if (!file_exists($autoloadPath)) {
+    // Chercher depuis le répertoire courant (application)
+    $currentDir = getcwd();
+    $autoloadPath = $currentDir . '/vendor/autoload.php';
+    
+    if (!file_exists($autoloadPath)) {
+        echo "❌ Erreur : Impossible de trouver vendor/autoload.php\n";
+        echo "Assurez-vous d'exécuter ce script depuis le répertoire racine de votre projet.\n";
+        exit(1);
+    }
+}
+
+require_once $autoloadPath;
+
+use JulienLinard\Doctrine\EntityManager;
+
+// Charger le fichier .env si disponible (optionnel)
+loadEnvFile();
+
+// Récupérer l'action depuis les arguments CLI
+$action = $argv[1] ?? 'status';
+$entityClass = null;
+
+// Récupérer les options (pour --steps)
+$options = [];
+for ($i = 1; $i < $argc; $i++) {
+    if (strpos($argv[$i], '--steps=') === 0) {
+        $options['steps'] = (int)substr($argv[$i], 8);
+    } elseif ($i === 2 && !str_starts_with($argv[$i], '--')) {
+        // Le deuxième argument sans -- est l'entité (pour generate)
+        $entityClass = $argv[$i];
+    }
+}
+
+// Si c'est help, afficher l'aide sans charger la config
+if ($action === 'help') {
+    showHelp();
+    exit(0);
+}
+
+// Charger la configuration
+$config = loadDatabaseConfig();
+
+if ($config === null) {
+    echo "❌ Erreur : Impossible de charger la configuration de la base de données.\n";
+    echo "\nLe script cherche la configuration dans:\n";
+    echo "  1. Variable d'environnement DOCTRINE_CONFIG (chemin vers fichier PHP)\n";
+    echo "  2. config/database.php\n";
+    echo "  3. ../config/database.php\n";
+    echo "  4. www/config/database.php\n";
+    echo "  5. src/config/database.php\n";
+    echo "  6. Variables d'environnement DB_HOST, DB_NAME, DB_USER, DB_PASSWORD\n";
+    echo "\nRépertoire courant : " . getcwd() . "\n";
+    echo "\nCréez un fichier config/database.php avec:\n";
+    echo "<?php\n";
+    echo "return [\n";
+    echo "    'driver' => 'mysql',\n";
+    echo "    'host' => 'localhost',\n";
+    echo "    'dbname' => 'mydatabase',\n";
+    echo "    'user' => 'root',\n";
+    echo "    'password' => 'password'\n";
+    echo "];\n";
+    exit(1);
+}
+
+// Créer EntityManager
+try {
+    $em = new EntityManager($config);
+} catch (\Exception $e) {
+    echo "❌ Erreur de connexion : {$e->getMessage()}\n";
+    exit(1);
+}
+
+try {
+    match ($action) {
+        'generate' => generateMigration($em, $entityClass),
+        'migrate' => executeMigrations($em),
+        'rollback' => rollbackMigrations($em, $options['steps'] ?? null),
+        'create' => createDatabase($config),
+        'drop' => dropDatabase($config),
+        'status' => showStatus($em),
+        'help' => showHelp(),
+        default => throw new \InvalidArgumentException(
+            "Action inconnue : {$action}. Utilisez 'generate', 'migrate', 'rollback', 'create', 'drop', 'status' ou 'help'"
+        )
+    };
+} catch (\Exception $e) {
+    echo "❌ Erreur : {$e->getMessage()}\n";
+    exit(1);
+}
+
+/**
+ * Charge le fichier .env si disponible (optionnel)
+ */
+function loadEnvFile(): void
+{
+    $currentDir = getcwd();
+    $envPaths = [
+        $currentDir . '/.env',
+        $currentDir . '/www/.env',
+        $currentDir . '/src/.env',
+        $currentDir . '/../.env',
+    ];
+    
+    foreach ($envPaths as $envPath) {
+        if (file_exists($envPath)) {
+            // Essayer de charger avec php-dotenv si disponible
+            if (class_exists('JulienLinard\Dotenv\Dotenv')) {
+                try {
+                    \JulienLinard\Dotenv\Dotenv::createImmutable(dirname($envPath), basename($envPath))->load();
+                    return;
+                } catch (\Exception $e) {
+                    // Ignorer les erreurs de chargement .env
+                }
+            }
+            // Fallback : parser manuellement le .env (basique)
+            parseEnvFile($envPath);
+            return;
+        }
+    }
+}
+
+/**
+ * Parse basique d'un fichier .env (fallback si php-dotenv n'est pas disponible)
+ */
+function parseEnvFile(string $filePath): void
+{
+    if (!file_exists($filePath) || !is_readable($filePath)) {
+        return;
+    }
+    
+    $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if ($lines === false) {
+        return;
+    }
+    
+    foreach ($lines as $line) {
+        $line = trim($line);
+        
+        // Ignorer les commentaires
+        if (strpos($line, '#') === 0) {
+            continue;
+        }
+        
+        // Parser KEY=VALUE
+        if (strpos($line, '=') !== false) {
+            [$key, $value] = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim($value);
+            
+            // Retirer les guillemets
+            if ((strpos($value, '"') === 0 && substr($value, -1) === '"') ||
+                (strpos($value, "'") === 0 && substr($value, -1) === "'")) {
+                $value = substr($value, 1, -1);
+            }
+            
+            // Définir la variable d'environnement si elle n'existe pas déjà
+            if (!isset($_ENV[$key]) && !isset($_SERVER[$key])) {
+                $_ENV[$key] = $value;
+                $_SERVER[$key] = $value;
+                putenv("$key=$value");
+            }
+        }
+    }
+}
+
+/**
+ * Détecte si une requête SQL est une commande DDL
+ * 
+ * @param string $sql Requête SQL à analyser
+ * @return bool True si c'est une commande DDL
+ */
+function isDDLStatement(string $sql): bool
+{
+    $sql = trim($sql);
+    $ddlKeywords = ['CREATE', 'DROP', 'ALTER', 'TRUNCATE', 'RENAME'];
+    
+    foreach ($ddlKeywords as $keyword) {
+        if (stripos($sql, $keyword) === 0) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+/**
+ * Trouve le dossier migrations dans différents emplacements possibles
+ */
+function findMigrationsPath(): string
+{
+    $currentDir = getcwd();
+    $searchPaths = [
+        $currentDir . '/migrations',
+        $currentDir . '/www/migrations',
+        $currentDir . '/src/migrations',
+        $currentDir . '/../migrations',
+    ];
+    
+    foreach ($searchPaths as $path) {
+        if (is_dir($path)) {
+            return $path;
+        }
+    }
+    
+    // Par défaut, utiliser migrations dans le répertoire courant
+    return $currentDir . '/migrations';
+}
+
+/**
+ * Charge la configuration de la base de données
+ */
+function loadDatabaseConfig(): ?array
+{
+    // 1. Variable d'environnement DOCTRINE_CONFIG
+    if (($configPath = getenv('DOCTRINE_CONFIG')) && file_exists($configPath)) {
+        $config = require $configPath;
+        if (is_array($config)) {
+            return $config;
+        }
+    }
+    
+    $currentDir = getcwd();
+    $searchPaths = [
+        // 2. config/database.php depuis le répertoire courant
+        $currentDir . '/config/database.php',
+        // 3. ../config/database.php depuis le répertoire courant
+        $currentDir . '/../config/database.php',
+        // 4. www/config/database.php (structure skeleton)
+        $currentDir . '/www/config/database.php',
+        // 5. src/config/database.php (autre structure possible)
+        $currentDir . '/src/config/database.php',
+    ];
+    
+    foreach ($searchPaths as $configPath) {
+    if (file_exists($configPath)) {
+        $config = require $configPath;
+        if (is_array($config)) {
+            return $config;
+        }
+    }
+    }
+    
+    // 6. Variables d'environnement DB_*
+    $dbHost = getenv('DB_HOST');
+    $dbName = getenv('DB_NAME') ?: getenv('DB_DATABASE');
+    $dbUser = getenv('DB_USER') ?: getenv('DB_USERNAME');
+    $dbPassword = getenv('DB_PASSWORD') ?: getenv('DB_PASS');
+    
+    if ($dbHost && $dbName && $dbUser) {
+        return [
+            'driver' => getenv('DB_DRIVER') ?: 'mysql',
+            'host' => $dbHost,
+            'port' => getenv('DB_PORT') ?: null,
+            'dbname' => $dbName,
+            'user' => $dbUser,
+            'password' => $dbPassword ?: '',
+            'charset' => getenv('DB_CHARSET') ?: 'utf8mb4',
+        ];
+    }
+    
+    return null;
+}
+
+/**
+ * Génère une migration pour une ou plusieurs entités
+ */
+function generateMigration(EntityManager $em, ?string $entityClass): void
+{
+    echo "🔍 Génération de la migration...\n\n";
+    
+    if ($entityClass) {
+        // Migration pour une seule entité
+        if (!class_exists($entityClass)) {
+            throw new \RuntimeException("La classe {$entityClass} n'existe pas.");
+        }
+        
+        $sql = $em->generateMigration($entityClass);
+        
+        if (empty($sql)) {
+            echo "✅ Aucune migration nécessaire pour {$entityClass}.\n";
+            return;
+        }
+        
+        echo "📄 Migration SQL pour {$entityClass} :\n";
+        echo str_repeat("=", 60) . "\n";
+        echo $sql . "\n";
+        echo str_repeat("=", 60) . "\n";
+        
+        // Proposer de sauvegarder
+        $manager = $em->getMigrationManager();
+        $migrationName = $manager->generateMigrationName();
+        $migrationsPath = findMigrationsPath();
+        
+        if (!is_dir($migrationsPath)) {
+            mkdir($migrationsPath, 0755, true);
+        }
+        
+        $filename = $migrationsPath . '/' . $migrationName . '.sql';
+        file_put_contents($filename, $sql);
+        
+        echo "\n💾 Migration sauvegardée dans : {$filename}\n";
+    } else {
+        // Migration pour toutes les entités dans src/Entity ou App/Entity
+        $entitiesPath = findEntitiesPath();
+        $entityClasses = scanEntities($entitiesPath);
+        
+        if (empty($entityClasses)) {
+            echo "⚠️  Aucune entité trouvée.\n";
+            echo "Cherché dans : {$entitiesPath}\n";
+            echo "\nVous pouvez spécifier une entité :\n";
+            echo "  php bin/doctrine-migrate generate App\\Entity\\User\n";
+            return;
+        }
+        
+        echo "📋 Entités trouvées : " . implode(', ', $entityClasses) . "\n\n";
+        
+        $sql = $em->generateMigrations($entityClasses);
+        
+        if (empty($sql)) {
+            echo "✅ Aucune migration nécessaire. La base de données est à jour.\n";
+            return;
+        }
+        
+        echo "📄 Migration SQL générée :\n";
+        echo str_repeat("=", 60) . "\n";
+        echo $sql . "\n";
+        echo str_repeat("=", 60) . "\n";
+        
+        // Sauvegarder dans un fichier
+        $manager = $em->getMigrationManager();
+        $migrationName = $manager->generateMigrationName();
+        $migrationsPath = findMigrationsPath();
+        
+        if (!is_dir($migrationsPath)) {
+            mkdir($migrationsPath, 0755, true);
+        }
+        
+        $filename = $migrationsPath . '/' . $migrationName . '.sql';
+        file_put_contents($filename, $sql);
+        
+        echo "\n💾 Migration sauvegardée dans : {$filename}\n";
+    }
+}
+
+/**
+ * Exécute les migrations en attente
+ */
+function executeMigrations(EntityManager $em): void
+{
+    echo "🔍 Recherche des migrations...\n\n";
+    
+    $migrationsPath = findMigrationsPath();
+    
+    if (!is_dir($migrationsPath)) {
+        echo "⚠️  Le dossier migrations n'existe pas. Création...\n";
+        mkdir($migrationsPath, 0755, true);
+    }
+    
+    $files = glob($migrationsPath . '/*.sql');
+    
+    if (empty($files)) {
+        echo "✅ Aucune migration trouvée.\n";
+        return;
+    }
+    
+    // Trier les migrations par nom (chronologique)
+    sort($files);
+    
+    $manager = $em->getMigrationManager();
+    $runner = $em->getMigrationRunner();
+    $executed = $manager->getExecutedMigrations();
+    
+    $pending = [];
+    foreach ($files as $file) {
+        $migrationName = basename($file, '.sql');
+        if (!in_array($migrationName, $executed)) {
+            $pending[] = ['name' => $migrationName, 'file' => $file];
+        }
+    }
+    
+    if (empty($pending)) {
+        echo "✅ Toutes les migrations sont déjà appliquées.\n";
+        return;
+    }
+    
+    echo "📋 Migrations en attente : " . count($pending) . "\n\n";
+    
+    foreach ($pending as $migration) {
+        echo "▶️  Exécution de {$migration['name']}...\n";
+        
+        $sql = file_get_contents($migration['file']);
+        
+        if (empty(trim($sql))) {
+            echo "⚠️  Migration vide, ignorée.\n\n";
+            continue;
+        }
+        
+        try {
+            // Détecter automatiquement les DDL et désactiver les transactions
+            $useTransaction = !isDDLStatement(trim($sql));
+            
+            if (!$useTransaction) {
+                echo "💡 DDL détecté, transaction désactivée.\n";
+            }
+            
+            $runner->run($sql, $useTransaction);
+            $manager->markAsExecuted($migration['name']);
+            echo "✅ Migration {$migration['name']} appliquée avec succès.\n\n";
+        } catch (\Exception $e) {
+            echo "❌ Erreur lors de l'exécution de {$migration['name']} : {$e->getMessage()}\n";
+            exit(1);
+        }
+    }
+    
+    echo "✅ Toutes les migrations ont été appliquées.\n";
+}
+
+/**
+ * Annule les migrations (rollback)
+ */
+function rollbackMigrations(EntityManager $em, ?int $steps = null): void
+{
+    echo "🔄 Rollback des migrations...\n\n";
+    
+    $manager = $em->getMigrationManager();
+    $runner = $em->getMigrationRunner();
+    
+    // Récupérer les migrations à annuler
+    $migrationsToRollback = $manager->getMigrationsToRollback($steps);
+    
+    if (empty($migrationsToRollback)) {
+        echo "✅ Aucune migration à annuler.\n";
+        return;
+    }
+    
+    $count = count($migrationsToRollback);
+    if ($steps !== null) {
+        echo "📋 Annulation de {$count} migration(s)...\n\n";
+    } else {
+        echo "📋 Annulation de la dernière migration...\n\n";
+    }
+    
+    $migrationsPath = findMigrationsPath();
+    
+    foreach ($migrationsToRollback as $migrationName) {
+        echo "⏪ Annulation de {$migrationName}...\n";
+        
+        // Chercher le fichier de migration
+        $migrationFile = $migrationsPath . '/' . $migrationName . '.sql';
+        
+        if (!file_exists($migrationFile)) {
+            // Essayer de charger une classe de migration
+            $migrationClass = loadMigrationClass($migrationName);
+            
+            if ($migrationClass === null) {
+                echo "⚠️  Fichier de migration non trouvé : {$migrationFile}\n";
+                echo "   Tentative de rollback automatique...\n";
+                
+                // Rollback automatique basé sur le nom de la migration
+                $rollbackSql = generateAutomaticRollback($migrationName, $em);
+                
+                if (empty($rollbackSql)) {
+                    echo "❌ Impossible de générer un rollback automatique pour {$migrationName}\n";
+                    echo "   Créez un fichier {$migrationName}_down.sql ou une classe MigrationInterface\n";
+                    continue;
+                }
+                
+                try {
+                    $useTransaction = !isDDLStatement(trim($rollbackSql));
+                    $runner->rollback($rollbackSql, $useTransaction);
+                    $manager->markAsRolledBack($migrationName);
+                    echo "✅ Migration {$migrationName} annulée avec succès.\n\n";
+                } catch (\Exception $e) {
+                    echo "❌ Erreur lors du rollback de {$migrationName} : {$e->getMessage()}\n";
+                    exit(1);
+                }
+                
+                continue;
+            }
+            
+            // Utiliser la classe de migration
+            if ($migrationClass instanceof \JulienLinard\Doctrine\Migration\MigrationInterface) {
+                $rollbackSql = $migrationClass->down();
+                
+                try {
+                    $useTransaction = !isDDLStatement(trim($rollbackSql));
+                    $runner->rollback($rollbackSql, $useTransaction);
+                    $manager->markAsRolledBack($migrationName);
+                    echo "✅ Migration {$migrationName} annulée avec succès.\n\n";
+                } catch (\Exception $e) {
+                    echo "❌ Erreur lors du rollback de {$migrationName} : {$e->getMessage()}\n";
+                    exit(1);
+                }
+                
+                continue;
+            }
+        }
+        
+        // Chercher un fichier _down.sql
+        $downFile = $migrationsPath . '/' . $migrationName . '_down.sql';
+        
+        if (file_exists($downFile)) {
+            $rollbackSql = file_get_contents($downFile);
+        } else {
+            // Rollback automatique basé sur le contenu du fichier up
+            $upSql = file_get_contents($migrationFile);
+            $rollbackSql = generateAutomaticRollback($migrationName, $em, $upSql);
+            
+            if (empty($rollbackSql)) {
+                echo "❌ Impossible de générer un rollback automatique pour {$migrationName}\n";
+                echo "   Créez un fichier {$migrationName}_down.sql\n";
+                continue;
+            }
+        }
+        
+        if (empty(trim($rollbackSql))) {
+            echo "⚠️  Rollback vide, ignoré.\n\n";
+            continue;
+        }
+        
+        try {
+            // Détecter automatiquement les DDL et désactiver les transactions
+            $useTransaction = !isDDLStatement(trim($rollbackSql));
+            
+            if (!$useTransaction) {
+                echo "💡 DDL détecté, transaction désactivée.\n";
+            }
+            
+            $runner->rollback($rollbackSql, $useTransaction);
+            $manager->markAsRolledBack($migrationName);
+            echo "✅ Migration {$migrationName} annulée avec succès.\n\n";
+        } catch (\Exception $e) {
+            echo "❌ Erreur lors du rollback de {$migrationName} : {$e->getMessage()}\n";
+            exit(1);
+        }
+    }
+    
+    echo "✅ Rollback terminé.\n";
+}
+
+/**
+ * Charge une classe de migration
+ */
+function loadMigrationClass(string $migrationName): ?object
+{
+    $migrationsPath = findMigrationsPath();
+    $classFile = $migrationsPath . '/' . $migrationName . '.php';
+    
+    if (!file_exists($classFile)) {
+        return null;
+    }
+    
+    require_once $classFile;
+    
+    // Chercher la classe dans le namespace
+    $className = $migrationName;
+    if (class_exists($className)) {
+        return new $className();
+    }
+    
+    // Chercher dans le namespace App\Migrations
+    $className = 'App\\Migrations\\' . $migrationName;
+    if (class_exists($className)) {
+        return new $className();
+    }
+    
+    return null;
+}
+
+/**
+ * Génère un rollback automatique basé sur le nom ou le SQL de la migration
+ */
+function generateAutomaticRollback(string $migrationName, EntityManager $em, ?string $upSql = null): string
+{
+    // Si on a le SQL up, essayer de générer le rollback inverse
+    if ($upSql !== null) {
+        // Détecter CREATE TABLE -> DROP TABLE
+        if (preg_match('/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(\w+)`?/i', $upSql, $matches)) {
+            $tableName = $matches[1];
+            return "DROP TABLE IF EXISTS `{$tableName}`;";
+        }
+        
+        // Détecter ALTER TABLE ADD COLUMN -> ALTER TABLE DROP COLUMN
+        if (preg_match('/ALTER\s+TABLE\s+`?(\w+)`?\s+ADD\s+COLUMN\s+`?(\w+)`?/i', $upSql, $matches)) {
+            $tableName = $matches[1];
+            $columnName = $matches[2];
+            return "ALTER TABLE `{$tableName}` DROP COLUMN `{$columnName}`;";
+        }
+    }
+    
+    // Basé sur le nom de la migration
+    if (preg_match('/Create(\w+)Table/i', $migrationName, $matches)) {
+        $tableName = strtolower($matches[1]);
+        return "DROP TABLE IF EXISTS `{$tableName}`;";
+    }
+    
+    return '';
+}
+
+/**
+ * Affiche le statut des migrations
+ */
+function showStatus(EntityManager $em): void
+{
+    echo "📊 Statut des migrations\n";
+    echo str_repeat("=", 60) . "\n\n";
+    
+    $migrationsPath = findMigrationsPath();
+    $files = glob($migrationsPath . '/*.sql');
+    $manager = $em->getMigrationManager();
+    $executed = $manager->getExecutedMigrations();
+    
+    if (empty($files)) {
+        echo "Aucune migration trouvée dans {$migrationsPath}\n";
+        return;
+    }
+    
+    $applied = 0;
+    $pending = 0;
+    
+    foreach ($files as $file) {
+        $migrationName = basename($file, '.sql');
+        $isExecuted = in_array($migrationName, $executed);
+        $status = $isExecuted ? '✅ Appliquée' : '⏳ En attente';
+        
+        if ($isExecuted) {
+            $applied++;
+        } else {
+            $pending++;
+        }
+        
+        echo "{$migrationName} : {$status}\n";
+    }
+    
+    echo "\n";
+    echo "Total : " . count($files) . " migration(s)\n";
+    echo "Appliquées : {$applied}\n";
+    echo "En attente : {$pending}\n";
+}
+
+/**
+ * Trouve le chemin vers les entités
+ */
+function findEntitiesPath(): string
+{
+    $currentDir = getcwd();
+    $possiblePaths = [
+        $currentDir . '/src/Entity',
+        $currentDir . '/app/Entity',
+        $currentDir . '/App/Entity',
+        $currentDir . '/../src/Entity',
+        $currentDir . '/../app/Entity',
+    ];
+    
+    foreach ($possiblePaths as $path) {
+        if (is_dir($path)) {
+            return $path;
+        }
+    }
+    
+    return $currentDir . '/src/Entity'; // Par défaut
+}
+
+/**
+ * Scanne le dossier des entités pour trouver toutes les classes
+ */
+function scanEntities(string $entitiesPath): array
+{
+    if (!is_dir($entitiesPath)) {
+        return [];
+    }
+    
+    $entities = [];
+    $files = glob($entitiesPath . '/*.php');
+    
+    foreach ($files as $file) {
+        $className = getClassNameFromFile($file);
+        if ($className && isEntity($className)) {
+            $entities[] = $className;
+        }
+    }
+    
+    return $entities;
+}
+
+/**
+ * Extrait le nom de classe depuis un fichier
+ */
+function getClassNameFromFile(string $file): ?string
+{
+    $content = file_get_contents($file);
+    
+    if (preg_match('/namespace\s+([^;]+);/', $content, $namespaceMatches)) {
+        if (preg_match('/class\s+(\w+)/', $content, $classMatches)) {
+            return $namespaceMatches[1] . '\\' . $classMatches[1];
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * Vérifie si une classe est une entité Doctrine
+ */
+function isEntity(string $className): bool
+{
+    try {
+        $reflection = new \ReflectionClass($className);
+        $attributes = $reflection->getAttributes(\JulienLinard\Doctrine\Mapping\Entity::class);
+        return !empty($attributes);
+    } catch (\Exception $e) {
+        return false;
+    }
+}
+
+/**
+ * Crée la base de données
+ */
+function createDatabase(array $config): void
+{
+    $dbName = $config['dbname'] ?? $config['database'] ?? null;
+    
+    if (empty($dbName)) {
+        echo "❌ Erreur : Le nom de la base de données n'est pas défini dans la configuration.\n";
+        exit(1);
+    }
+    
+    echo "🔨 Création de la base de données '{$dbName}'...\n\n";
+    
+    // Créer une connexion sans spécifier la base de données
+    $driver = $config['driver'] ?? 'mysql';
+    $host = $config['host'] ?? 'localhost';
+    $port = $config['port'] ?? null;
+    $user = $config['user'] ?? $config['username'] ?? 'root';
+    $password = $config['password'] ?? '';
+    $charset = $config['charset'] ?? 'utf8mb4';
+    
+    try {
+        // Se connecter sans base de données
+        if ($driver === 'mysql') {
+            $dsn = sprintf(
+                'mysql:host=%s%s;charset=%s',
+                $host,
+                $port ? ';port=' . $port : '',
+                $charset
+            );
+        } elseif ($driver === 'pgsql') {
+            $dsn = sprintf(
+                'pgsql:host=%s%s',
+                $host,
+                $port ? ';port=' . $port : ''
+            );
+        } else {
+            echo "❌ Erreur : Le driver '{$driver}' n'est pas supporté pour la création de base de données.\n";
+            exit(1);
+        }
+        
+        $pdo = new \PDO($dsn, $user, $password, [
+            \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+        ]);
+        
+        // Échapper le nom de la base de données
+        $dbNameEscaped = '`' . str_replace('`', '``', $dbName) . '`';
+        
+        // Créer la base de données
+        if ($driver === 'mysql') {
+            $sql = "CREATE DATABASE IF NOT EXISTS {$dbNameEscaped} CHARACTER SET {$charset} COLLATE {$charset}_unicode_ci";
+        } else {
+            $sql = "CREATE DATABASE {$dbNameEscaped}";
+        }
+        
+        $pdo->exec($sql);
+        echo "✅ Base de données '{$dbName}' créée avec succès.\n";
+        
+    } catch (\PDOException $e) {
+        if (strpos($e->getMessage(), 'already exists') !== false || 
+            strpos($e->getMessage(), 'Duplicate') !== false) {
+            echo "⚠️  La base de données '{$dbName}' existe déjà.\n";
+        } else {
+            echo "❌ Erreur lors de la création de la base de données : {$e->getMessage()}\n";
+            exit(1);
+        }
+    }
+}
+
+/**
+ * Supprime la base de données
+ */
+function dropDatabase(array $config): void
+{
+    $dbName = $config['dbname'] ?? $config['database'] ?? null;
+    
+    if (empty($dbName)) {
+        echo "❌ Erreur : Le nom de la base de données n'est pas défini dans la configuration.\n";
+        exit(1);
+    }
+    
+    echo "⚠️  ATTENTION : Vous êtes sur le point de supprimer la base de données '{$dbName}'.\n";
+    echo "Cette action est irréversible et supprimera toutes les données.\n\n";
+    
+    // Demander confirmation
+    echo "Voulez-vous continuer ? (tapez 'yes' pour confirmer) : ";
+    $handle = fopen("php://stdin", "r");
+    $line = fgets($handle);
+    $confirmation = trim($line);
+    fclose($handle);
+    
+    if (strtolower($confirmation) !== 'yes') {
+        echo "❌ Opération annulée.\n";
+        exit(0);
+    }
+    
+    echo "\n🗑️  Suppression de la base de données '{$dbName}'...\n\n";
+    
+    // Créer une connexion sans spécifier la base de données
+    $driver = $config['driver'] ?? 'mysql';
+    $host = $config['host'] ?? 'localhost';
+    $port = $config['port'] ?? null;
+    $user = $config['user'] ?? $config['username'] ?? 'root';
+    $password = $config['password'] ?? '';
+    $charset = $config['charset'] ?? 'utf8mb4';
+    
+    try {
+        // Se connecter sans base de données
+        if ($driver === 'mysql') {
+            $dsn = sprintf(
+                'mysql:host=%s%s;charset=%s',
+                $host,
+                $port ? ';port=' . $port : '',
+                $charset
+            );
+        } elseif ($driver === 'pgsql') {
+            $dsn = sprintf(
+                'pgsql:host=%s%s',
+                $host,
+                $port ? ';port=' . $port : ''
+            );
+        } else {
+            echo "❌ Erreur : Le driver '{$driver}' n'est pas supporté pour la suppression de base de données.\n";
+            exit(1);
+        }
+        
+        $pdo = new \PDO($dsn, $user, $password, [
+            \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+        ]);
+        
+        // Échapper le nom de la base de données
+        $dbNameEscaped = '`' . str_replace('`', '``', $dbName) . '`';
+        
+        // Supprimer la base de données
+        $sql = "DROP DATABASE IF EXISTS {$dbNameEscaped}";
+        $pdo->exec($sql);
+        
+        echo "✅ Base de données '{$dbName}' supprimée avec succès.\n";
+        
+    } catch (\PDOException $e) {
+        if (strpos($e->getMessage(), "doesn't exist") !== false || 
+            strpos($e->getMessage(), 'Unknown database') !== false) {
+            echo "⚠️  La base de données '{$dbName}' n'existe pas.\n";
+        } else {
+            echo "❌ Erreur lors de la suppression de la base de données : {$e->getMessage()}\n";
+            exit(1);
+        }
+    }
+}
+
+/**
+ * Affiche l'aide
+ */
+function showHelp(): void
+{
+    echo "📖 Doctrine Migrations CLI\n";
+    echo str_repeat("=", 60) . "\n\n";
+    echo "Usage:\n";
+    echo "  php bin/doctrine-migrate [command] [options]\n\n";
+    echo "Commandes disponibles:\n";
+    echo "  generate [EntityClass]  Génère une migration pour une entité ou toutes les entités\n";
+    echo "  migrate                 Exécute les migrations en attente\n";
+    echo "  rollback [--steps=N]    Annule les migrations (dernière par défaut, ou N migrations)\n";
+    echo "  create                  Crée la base de données\n";
+    echo "  drop                    Supprime la base de données (demande confirmation)\n";
+    echo "  status                  Affiche le statut des migrations\n";
+    echo "  help                    Affiche cette aide\n\n";
+    echo "Exemples:\n";
+    echo "  php bin/doctrine-migrate generate\n";
+    echo "  php bin/doctrine-migrate generate App\\Entity\\User\n";
+    echo "  php bin/doctrine-migrate migrate\n";
+    echo "  php bin/doctrine-migrate rollback\n";
+    echo "  php bin/doctrine-migrate rollback --steps=3\n";
+    echo "  php bin/doctrine-migrate create\n";
+    echo "  php bin/doctrine-migrate drop\n";
+    echo "  php bin/doctrine-migrate status\n\n";
+    echo "Configuration:\n";
+    echo "  Le script cherche la config dans:\n";
+    echo "  1. Variable d'environnement DOCTRINE_CONFIG\n";
+    echo "  2. config/database.php\n";
+    echo "  3. Variables d'environnement DB_*\n";
+}
+

@@ -14,12 +14,9 @@
     <?php if(isset($_SESSION['auth_user'])): ?>
         <div class="flex items-center gap-6 mr-8">
             <span class="text-gray-700 font-medium">Bienvenue, <?= htmlspecialchars($user->firstname ?? 'Utilisateur') ?></span>
-            <form action="/logout" method="POST" class="inline">
-                <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_csrf_token'] ?? '') ?>">
-                <button type="submit" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-colors">
-                    Déconnexion
-                </button>
-            </form>
+            <a href="/logout" onclick="return confirm('Êtes-vous sûr de vouloir vous déconnecter ?')" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-colors inline-block cursor-pointer">
+                Déconnexion
+            </a>
         </div>
     <?php endif; ?>
 </header>
@@ -28,7 +25,7 @@
     <div class="grid grid-cols-3 gap-6">
         <!-- Section gauche -->
         <section>
-                <a href="/historique" class="text-xl text-gray-900 font-semibold mb-4 hover:text-indigo-600 block"> Historique des commandes des utilisateurs</a>
+                <a href="/admin/orders" class="text-xl text-gray-900 font-semibold mb-4 hover:text-indigo-600 block"> Historique des commandes des utilisateurs</a>
                 <a href="/wishlist" class="text-xl text-gray-500 mb-6 block"> Logs </a>
                 <a href="/catalogue" class="text-xl text-gray-500 mb-6 hover:text-indigo-100 block"> Vue Catalogue </a>
             <!-- Bloc supplémentaire -->

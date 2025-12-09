@@ -220,7 +220,7 @@ class AuthController extends Controller
      * 
      * CONCEPT : Route protégée par AuthMiddleware (seulement pour les utilisateurs authentifiés)
      */
-    #[Route(path: '/logout', methods: ['POST'], name: 'logout', middleware: [new AuthMiddleware()])]
+    #[Route(path: '/logout', methods: ['GET'], name: 'logout', middleware: [new AuthMiddleware()])]
     public function logout(): Response
     {
         $this->auth->logout();

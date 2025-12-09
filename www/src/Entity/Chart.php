@@ -24,4 +24,13 @@ class Chart
 
     #[Column(type: "string", length: 100)]
     public string $status;
+
+    #[Column(type: "string", length: 100, nullable: true)]
+    public ?string $delivery_status = 'En cours de préparation';
+
+    #[Column(type: "datetime", nullable: true)]
+    public ?\DateTime $created_at = null;
+
+    #[Column(type: "datetime", nullable: true)]
+    public ?\DateTime $validated_at = null;
 }

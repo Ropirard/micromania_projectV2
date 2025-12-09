@@ -685,4 +685,152 @@ class AdminController extends Controller
         // Rediriger avec un message de succès
         return $this->redirect('/admin/edit/list?success=Jeu supprimé avec succès');
     }
+    
+    /**
+     * Page d'historique de toutes les commandes (Admin)
+     */
+    #[Route(path: '/admin/orders', methods: ['GET'], name: 'admin.orders', middleware: [new AuthMiddleware()])]
+    public function allOrders(): Response
+    {
+        // Vérifier que l'utilisateur est admin
+        $user = $this->auth->user();
+        if (!$user || $user->role !== 'admin') {
+            return $this->redirect('/');
+        }
+        
+        $pdo = $this->em->getConnection()->getPdo();
+        $orders = [];
+        
+        // Récupérer toutes les commandes validées de tous les utilisateurs
+        $stmtCharts = $pdo->prepare("
+            SELECT c.*, u.firstname, u.lastname, u.email 
+            FROM charts c
+            INNER JOIN users u ON c.user_id = u.id
+            WHERE c.status = 'validated' 
+            ORDER BY c.validated_at DESC
+        ");
+        $stmtCharts->execute();
+        $chartsData = $stmtCharts->fetchAll(\PDO::FETCH_ASSOC);
+        
+        $gameRepository = $this->em->getRepository(Game::class);
+        $genreRepository = $this->em->getRepository(Genre::class);
+        $plateformRepository = $this->em->getRepository(Plateform::class);
+        $mediaRepository = $this->em->getRepository(Media::class);
+        
+        foreach ($chartsData as $chartData) {
+            $order = [
+                'id' => $chartData['id'],
+                'validated_at' => $chartData['validated_at'],
+                'delivery_status' => $chartData['delivery_status'] ?? 'En cours de préparation',
+                'user' => [
+                    'firstname' => $chartData['firstname'],
+                    'lastname' => $chartData['lastname'],
+                    'email' => $chartData['email']
+                ],
+                'games' => []
+            ];
+            
+            // Récupérer les jeux de cette commande
+            $stmtGames = $pdo->prepare("
+                SELECT g.* FROM games g
+                INNER JOIN charts_games cg ON g.id = cg.game_id
+                WHERE cg.chart_id = ?
+            ");
+            $stmtGames->execute([$chartData['id']]);
+            $gamesData = $stmtGames->fetchAll(\PDO::FETCH_ASSOC);
+            
+            foreach ($gamesData as $gameData) {
+                $game = $gameRepository->find($gameData['id']);
+                
+                if ($game) {
+                    // Récupérer les genres
+                    $stmtGenres = $pdo->prepare("
+                        SELECT g.* FROM genres g
+                        INNER JOIN games_genres gg ON g.id = gg.genre_id
+                        WHERE gg.game_id = ?
+                    ");
+                    $stmtGenres->execute([$game->id]);
+                    $gameGenresData = $stmtGenres->fetchAll(\PDO::FETCH_ASSOC);
+                    
+                    $game->genres = [];
+                    foreach ($gameGenresData as $genreData) {
+                        $genre = $genreRepository->find($genreData['id']);
+                        if ($genre) {
+                            $game->genres[] = $genre;
+                        }
+                    }
+                    
+                    // Récupérer les plateformes
+                    $stmtPlateforms = $pdo->prepare("
+                        SELECT p.* FROM plateforms p
+                        INNER JOIN games_plateforms gp ON p.id = gp.plateform_id
+                        WHERE gp.game_id = ?
+                    ");
+                    $stmtPlateforms->execute([$game->id]);
+                    $gamePlateformsData = $stmtPlateforms->fetchAll(\PDO::FETCH_ASSOC);
+                    
+                    $game->plateforms = [];
+                    foreach ($gamePlateformsData as $plateformData) {
+                        $plateform = $plateformRepository->find($plateformData['id']);
+                        if ($plateform) {
+                            $game->plateforms[] = $plateform;
+                        }
+                    }
+                    
+                    // Récupérer les médias
+                    $game->media = $mediaRepository->findBy(['game_id' => $game->id]);
+                    
+                    $order['games'][] = $game;
+                }
+            }
+            
+            $orders[] = $order;
+        }
+        
+        return $this->view('admin/orders', [
+            'title' => 'Historique des Commandes',
+            'csrf_token' => $_SESSION['_csrf_token'] ?? '',
+            'user' => $user,
+            'orders' => $orders
+        ]);
+    }
+    
+    /**
+     * Mettre à jour le statut de livraison d'une commande
+     */
+    #[Route(path: '/admin/orders/{id}/status/{status}', methods: ['GET'], name: 'admin.orders.update_status', middleware: [new AuthMiddleware()])]
+    public function updateOrderStatus(int $id, string $status): Response
+    {
+        // Vérifier que l'utilisateur est admin
+        $user = $this->auth->user();
+        if (!$user || $user->role !== 'admin') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'Accès refusé']);
+            exit;
+        }
+        
+        // Décoder le statut (URL encode)
+        $deliveryStatus = urldecode($status);
+        
+        // Valider le statut
+        $validStatuses = ['En cours de préparation', 'Expédiée', 'Livrée'];
+        if (!in_array($deliveryStatus, $validStatuses)) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'Statut invalide']);
+            exit;
+        }
+        
+        $pdo = $this->em->getConnection()->getPdo();
+        
+        // Mettre à jour le statut de livraison
+        $stmt = $pdo->prepare("UPDATE charts SET delivery_status = ? WHERE id = ?");
+        $stmt->execute([$deliveryStatus, $id]);
+        
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => true, 
+            'message' => 'Statut mis à jour avec succès'
+        ]);
+        exit;
+    }
 }

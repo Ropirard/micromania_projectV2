@@ -24,12 +24,9 @@
                     <p class="text-sm text-gray-600">
                         Bonjour, <span class="font-semibold text-gray-900"><?= htmlspecialchars($user->firstname ?? $user->email) ?></span>
                     </p>
-                    <form action="/logout" method="POST">
-                        <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_csrf_token'] ?? '') ?>">
-                        <button type="submit" class="text-sm text-gray-600 hover:text-gray-900 transition-colors">
-                            Déconnexion
-                        </button>
-                    </form>
+                    <a href="/logout" onclick="return confirm('Êtes-vous sûr de vouloir vous déconnecter ?')" class="text-sm text-gray-600 hover:text-gray-900 transition-colors cursor-pointer">
+                        Déconnexion
+                    </a>
                 </div>
             </div>
         </div>
