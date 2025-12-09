@@ -16,7 +16,7 @@ class Chart
     public ?int $id = null;
 
     #[ManyToOne(targetEntity: User::class, inversedBy: 'charts')]
-    public ?User $user = null;
+    public User $user;
 
     #[ManyToMany(targetEntity: Game::class, inversedBy: 'charts', joinTable: 'charts_games', 
     joinColumns: ['chart_id'], inverseJoinColumns: ['game_id'])]

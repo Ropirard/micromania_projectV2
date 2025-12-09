@@ -16,6 +16,7 @@ namespace App\Controller;
 use App\Entity\Game;
 use App\Entity\Genre;
 use App\Entity\Plateform;
+use App\Entity\Media;
 use JulienLinard\Auth\AuthManager;
 use JulienLinard\Router\Request;
 use JulienLinard\Router\Response;
@@ -112,6 +113,44 @@ class AdminController extends Controller
         $this->em->persist($game);
         $this->em->flush();
         
+        // Gérer l'upload de l'image
+        if (isset($_FILES['media']) && $_FILES['media']['error'] === UPLOAD_ERR_OK) {
+            $file = $_FILES['media'];
+            $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/avif', 'image/webp'];
+            
+            if (in_array($file['type'], $allowedTypes)) {
+                // Créer le dossier uploads s'il n'existe pas
+                $uploadDir = __DIR__ . '/../../public/uploads/';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0777, true);
+                }
+                
+                // Générer un nom de fichier unique
+                $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+                $filename = uniqid('game_', true) . '.' . $extension;
+                $filepath = $uploadDir . $filename;
+                
+                // Déplacer le fichier uploadé
+                if (move_uploaded_file($file['tmp_name'], $filepath)) {
+                    // Créer l'entité Media
+                    $media = new Media();
+                    $media->filename = $filename;
+                    $media->original_filename = $file['name'];
+                    $media->mime_type = $file['type'];
+                    $media->size = $file['size'];
+                    $media->path = '/uploads/' . $filename;
+                    $media->type = 'image';
+                    $media->created_at = new \DateTime();
+                    $media->game = $game;
+                    
+                    $this->em->persist($media);
+                    $this->em->flush();
+                    
+                    error_log("Image uploadée : " . $media->path);
+                }
+            }
+        }
+        
         // Obtenir la connexion PDO pour les requêtes manuelles
         $pdo = $this->em->getConnection()->getPdo();
         
@@ -128,6 +167,36 @@ class AdminController extends Controller
             $stmtPlateform = $pdo->prepare("INSERT INTO games_plateforms (game_id, plateform_id) VALUES (?, ?)");
             foreach ($plateformIds as $plateformId) {
                 $stmtPlateform->execute([$game->id, (int) $plateformId]);
+            }
+        }
+        
+        // Gérer l'upload d'image
+        if (isset($_FILES['media']) && $_FILES['media']['error'] === UPLOAD_ERR_OK) {
+            $uploadDir = __DIR__ . '/../../public/uploads/';
+            
+            // Créer le dossier s'il n'existe pas
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0777, true);
+            }
+            
+            $file = $_FILES['media'];
+            $filename = uniqid('game_') . '_' . basename($file['name']);
+            $filepath = $uploadDir . $filename;
+            
+            if (move_uploaded_file($file['tmp_name'], $filepath)) {
+                // Créer l'entité Media
+                $media = new Media();
+                $media->filename = $filename;
+                $media->original_filename = $file['name'];
+                $media->mime_type = $file['type'];
+                $media->size = $file['size'];
+                $media->path = '/uploads/' . $filename;
+                $media->type = 'image';
+                $media->created_at = new \DateTime();
+                $media->game = $game;
+                
+                $this->em->persist($media);
+                $this->em->flush();
             }
         }
         
@@ -174,6 +243,7 @@ class AdminController extends Controller
         $pdo = $this->em->getConnection()->getPdo();
         $genreRepository = $this->em->getRepository(Genre::class);
         $plateformRepository = $this->em->getRepository(Plateform::class);
+        $mediaRepository = $this->em->getRepository(Media::class);
         
         foreach ($games as $game) {
             // Récupérer les genres du jeu
@@ -207,6 +277,21 @@ class AdminController extends Controller
                 $plateform = $plateformRepository->find($plateformData['id']);
                 if ($plateform) {
                     $game->plateforms[] = $plateform;
+                }
+            }
+            
+            // Récupérer les médias du jeu
+            $stmtMedia = $pdo->prepare("
+                SELECT * FROM media WHERE game_id = ?
+            ");
+            $stmtMedia->execute([$game->id]);
+            $mediaData = $stmtMedia->fetchAll(\PDO::FETCH_ASSOC);
+            
+            $game->media = [];
+            foreach ($mediaData as $mediaItem) {
+                $media = $mediaRepository->find($mediaItem['id']);
+                if ($media) {
+                    $game->media[] = $media;
                 }
             }
         }
@@ -239,6 +324,7 @@ class AdminController extends Controller
         $pdo = $this->em->getConnection()->getPdo();
         $genreRepository = $this->em->getRepository(Genre::class);
         $plateformRepository = $this->em->getRepository(Plateform::class);
+        $mediaRepository = $this->em->getRepository(Media::class);
         
         foreach ($games as $game) {
             // Récupérer les genres du jeu
@@ -272,6 +358,21 @@ class AdminController extends Controller
                 $plateform = $plateformRepository->find($plateformData['id']);
                 if ($plateform) {
                     $game->plateforms[] = $plateform;
+                }
+            }
+            
+            // Récupérer les médias du jeu
+            $stmtMedia = $pdo->prepare("
+                SELECT * FROM media WHERE game_id = ?
+            ");
+            $stmtMedia->execute([$game->id]);
+            $mediaData = $stmtMedia->fetchAll(\PDO::FETCH_ASSOC);
+            
+            $game->media = [];
+            foreach ($mediaData as $mediaItem) {
+                $media = $mediaRepository->find($mediaItem['id']);
+                if ($media) {
+                    $game->media[] = $media;
                 }
             }
         }
@@ -351,6 +452,22 @@ class AdminController extends Controller
             }
         }
         
+        // Récupérer les médias du jeu
+        $stmtMedia = $pdo->prepare("
+            SELECT * FROM media WHERE game_id = ?
+        ");
+        $stmtMedia->execute([$id]);
+        $mediaData = $stmtMedia->fetchAll(\PDO::FETCH_ASSOC);
+        
+        $mediaRepository = $this->em->getRepository(Media::class);
+        $game->media = [];
+        foreach ($mediaData as $mediaItem) {
+            $media = $mediaRepository->find($mediaItem['id']);
+            if ($media) {
+                $game->media[] = $media;
+            }
+        }
+        
         // Récupérer tous les genres et plateformes
         $genres = $genreRepository->findAll();
         $plateforms = $plateformRepository->findAll();
@@ -406,7 +523,6 @@ class AdminController extends Controller
         $plateformIds = $request->getPost('plateforms', []);
         
         // Debug: Logger les données reçues
-        error_log("=== MISE À JOUR JEU ID: $id ===");
         error_log("Titre reçu: " . ($title ?? 'NULL'));
         error_log("Description: " . ($description ?? 'NULL'));
         error_log("Prix: " . ($price ?? 'NULL'));
@@ -461,7 +577,112 @@ class AdminController extends Controller
             }
         }
         
+        // Gérer l'upload d'image
+        if (isset($_FILES['media']) && $_FILES['media']['error'] === UPLOAD_ERR_OK) {
+            // Supprimer l'ancienne image si elle existe
+            $stmtGetOldMedia = $pdo->prepare("SELECT * FROM media WHERE game_id = ?");
+            $stmtGetOldMedia->execute([$game->id]);
+            $oldMedia = $stmtGetOldMedia->fetch(\PDO::FETCH_ASSOC);
+            
+            if ($oldMedia) {
+                // Supprimer le fichier physique
+                $oldFilePath = __DIR__ . '/../../public' . $oldMedia['path'];
+                if (file_exists($oldFilePath)) {
+                    unlink($oldFilePath);
+                }
+                // Supprimer l'entrée en base
+                $stmtDeleteMedia = $pdo->prepare("DELETE FROM media WHERE id = ?");
+                $stmtDeleteMedia->execute([$oldMedia['id']]);
+            }
+            
+            // Uploader la nouvelle image
+            $uploadDir = __DIR__ . '/../../public/uploads/';
+            
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0777, true);
+            }
+            
+            $file = $_FILES['media'];
+            $filename = uniqid('game_') . '_' . basename($file['name']);
+            $filepath = $uploadDir . $filename;
+            
+            if (move_uploaded_file($file['tmp_name'], $filepath)) {
+                // Créer l'entité Media
+                $media = new Media();
+                $media->filename = $filename;
+                $media->original_filename = $file['name'];
+                $media->mime_type = $file['type'];
+                $media->size = $file['size'];
+                $media->path = '/uploads/' . $filename;
+                $media->type = 'image';
+                $media->created_at = new \DateTime();
+                $media->game = $game;
+                
+                $this->em->persist($media);
+                $this->em->flush();
+            }
+        }
+        
         // Rediriger vers la liste avec un message de succès
         return $this->redirect('/admin/edit/list?success=Jeu mis à jour avec succès');
+    }
+    
+    /**
+     * Suppression d'un jeu (GET avec confirmation)
+     */
+    #[Route(path: '/admin/game/delete/{id}', methods: ['GET'], name: 'admin.game.delete', middleware: [new AuthMiddleware()])]
+    public function deleteGame(int $id): Response
+    {
+        // Vérifier que l'utilisateur est admin
+        $user = $this->auth->user();
+        if (!$user || $user->role !== 'admin') {
+            return $this->redirect('/');
+        }
+        
+        // Récupérer le jeu à supprimer
+        $gameRepository = $this->em->getRepository(Game::class);
+        $game = $gameRepository->find($id);
+        
+        if (!$game) {
+            return $this->redirect('/admin/edit/list?error=Jeu non trouvé');
+        }
+        
+        $pdo = $this->em->getConnection()->getPdo();
+        
+        // Supprimer les images associées
+        $stmtGetMedia = $pdo->prepare("SELECT * FROM media WHERE game_id = ?");
+        $stmtGetMedia->execute([$id]);
+        $mediaFiles = $stmtGetMedia->fetchAll(\PDO::FETCH_ASSOC);
+        
+        foreach ($mediaFiles as $mediaFile) {
+            // Supprimer le fichier physique
+            $filePath = __DIR__ . '/../../public' . $mediaFile['path'];
+            if (file_exists($filePath)) {
+                unlink($filePath);
+            }
+        }
+        
+        // Supprimer les entrées media en base
+        $stmtDeleteMedia = $pdo->prepare("DELETE FROM media WHERE game_id = ?");
+        $stmtDeleteMedia->execute([$id]);
+        
+        // Supprimer les relations genres
+        $stmtDeleteGenres = $pdo->prepare("DELETE FROM games_genres WHERE game_id = ?");
+        $stmtDeleteGenres->execute([$id]);
+        
+        // Supprimer les relations plateformes
+        $stmtDeletePlateforms = $pdo->prepare("DELETE FROM games_plateforms WHERE game_id = ?");
+        $stmtDeletePlateforms->execute([$id]);
+        
+        // Supprimer les relations avec les charts (paniers)
+        $stmtDeleteCharts = $pdo->prepare("DELETE FROM charts_games WHERE game_id = ?");
+        $stmtDeleteCharts->execute([$id]);
+        
+        // Supprimer le jeu
+        $stmtDeleteGame = $pdo->prepare("DELETE FROM games WHERE id = ?");
+        $stmtDeleteGame->execute([$id]);
+        
+        // Rediriger avec un message de succès
+        return $this->redirect('/admin/edit/list?success=Jeu supprimé avec succès');
     }
 }

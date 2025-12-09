@@ -57,46 +57,58 @@
                     $randomColor = $colors[array_rand($colors)];
                 ?>
                     <div class="bg-black rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden p-6">
-                        <h3 class="text-xl font-bold text-white mb-2">
-                            <?= htmlspecialchars($game->title) ?>
-                        </h3>
-                        <p class="text-gray-600 text-sm mb-4">
-                            <?= htmlspecialchars($game->description) ?>
-                        </p>
-                        <div class="flex items-center gap-6 mb-4">
-                            <span class="text-2xl font-bold <?= $randomColor ?>">
-                                <?= number_format($game->price, 2, ',', ' ') ?> €
-                            </span>
-                            <span class="text-sm text-gray-500">
-                                Stock: <span class="font-semibold"><?= htmlspecialchars($game->stock) ?></span>
-                            </span>
+                        <div class="flex gap-6">
+                            <?php if (!empty($game->media) && isset($game->media[0])): ?>
+                                <div class="flex-shrink-0">
+                                    <img src="<?= htmlspecialchars($game->media[0]->path) ?>" 
+                                         alt="<?= htmlspecialchars($game->title) ?>" 
+                                         class="w-32 h-32 object-cover rounded-lg">
+                                </div>
+                            <?php endif; ?>
+                            
+                            <div class="flex-1">
+                                <h3 class="text-xl font-bold text-white mb-2">
+                                    <?= htmlspecialchars($game->title) ?>
+                                </h3>
+                                <p class="text-gray-400 text-sm mb-4">
+                                    <?= htmlspecialchars($game->description) ?>
+                                </p>
+                                <div class="flex items-center gap-6 mb-4">
+                                    <span class="text-2xl font-bold <?= $randomColor ?>">
+                                        <?= number_format($game->price, 2, ',', ' ') ?> €
+                                    </span>
+                                    <span class="text-sm text-gray-400">
+                                        Stock: <span class="font-semibold text-white"><?= htmlspecialchars($game->stock) ?></span>
+                                    </span>
+                                </div>
+                                
+                                <?php if (!empty($game->genres)): ?>
+                                    <div class="mb-3">
+                                        <p class="text-xs text-gray-500 mb-1">Genres:</p>
+                                        <div class="flex flex-wrap gap-1">
+                                            <?php foreach ($game->genres as $genre): ?>
+                                                <span class="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
+                                                    <?= htmlspecialchars($genre->name) ?>
+                                                </span>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                                
+                                <?php if (!empty($game->plateforms)): ?>
+                                    <div class="mb-4">
+                                        <p class="text-xs text-gray-500 mb-1">Plateformes:</p>
+                                        <div class="flex flex-wrap gap-1">
+                                            <?php foreach ($game->plateforms as $plateform): ?>
+                                                <span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                                                    <?= htmlspecialchars($plateform->name) ?>
+                                                </span>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
                         </div>
-                        
-                        <?php if (!empty($game->genres)): ?>
-                            <div class="mb-3">
-                                <p class="text-xs text-gray-500 mb-1">Genres:</p>
-                                <div class="flex flex-wrap gap-1">
-                                    <?php foreach ($game->genres as $genre): ?>
-                                        <span class="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
-                                            <?= htmlspecialchars($genre->name) ?>
-                                        </span>
-                                    <?php endforeach; ?>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <?php if (!empty($game->plateforms)): ?>
-                            <div class="mb-4">
-                                <p class="text-xs text-gray-500 mb-1">Plateformes:</p>
-                                <div class="flex flex-wrap gap-1">
-                                    <?php foreach ($game->plateforms as $plateform): ?>
-                                        <span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
-                                            <?= htmlspecialchars($plateform->name) ?>
-                                        </span>
-                                    <?php endforeach; ?>
-                                </div>
-                            </div>
-                        <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
             </div>

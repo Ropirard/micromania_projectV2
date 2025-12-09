@@ -57,6 +57,14 @@
                     $randomColor = $colors[array_rand($colors)];
                 ?>
                     <div class="bg-black rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden p-6 flex gap-6">
+                        <?php if (!empty($game->media) && isset($game->media[0])): ?>
+                            <div class="flex-shrink-0">
+                                <img src="<?= htmlspecialchars($game->media[0]->path) ?>" 
+                                     alt="<?= htmlspecialchars($game->title) ?>" 
+                                     class="w-32 h-32 object-cover rounded-lg">
+                            </div>
+                        <?php endif; ?>
+                        
                         <div class="flex-1">
                             <h3 class="text-xl font-bold text-white mb-2">
                                 <?= htmlspecialchars($game->title) ?>
@@ -106,19 +114,26 @@
                                     <path fill="currentColor" d="M23 5v2h-1v1h-1v1h-1v1h-1V9h-1V8h-1V7h-1V6h-1V5h-1V4h1V3h1V2h1V1h2v1h1v1h1v1h1v1zm-6 5V9h-1V8h-1V7h-1V6h-2v1h-1v1h-1v1H9v1H8v1H7v1H6v1H5v1H4v1H3v1H2v1H1v6h6v-1h1v-1h1v-1h1v-1h1v-1h1v-1h1v-1h1v-1h1v-1h1v-1h1v-1h1v-2zm-2 2v1h-1v1h-1v1h-1v1h-1v1h-1v1H9v1H8v1H7v1H3v-4h1v-1h1v-1h1v-1h1v-1h1v-1h1v-1h1v-1h1V9h1V8h2v1h1v1h1v2z"/>
                                 </svg>
                                         </a>
-                            <form action="/admin/delete/<?= $game->id ?>" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce jeu ?')">
-                                <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_csrf_token'] ?? '') ?>">
-                                <button type="submit" class="text-red-400 hover:text-red-300 transition-colors p-2" title="Supprimer">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-                                        <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 11v6m-4-6v6M6 7v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7M4 7h16M7 7l2-4h6l2 4"/>
-                                    </svg>
-                                </button>
-                            </form>
+                            <a href="javascript:void(0)" onclick="confirmDelete(<?= $game->id ?>, '<?= addslashes(htmlspecialchars($game->title)) ?>')" class="text-red-400 hover:text-red-300 transition-colors p-2 inline-block" title="Supprimer">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                                    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 11v6m-4-6v6M6 7v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7M4 7h16M7 7l2-4h6l2 4"/>
+                                </svg>
+                            </a>
                         </div>
                     </div>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
     </main>
+    
+    <script>
+    function confirmDelete(gameId, gameTitle) {
+        const message = `⚠️ Êtes-vous sûr de vouloir supprimer "${gameTitle}" ?\n\nCette action est irréversible et supprimera :\n• Le jeu\n• Ses images\n• Ses références dans les paniers`;
+        
+        if (confirm(message)) {
+            window.location.href = '/admin/game/delete/' + gameId;
+        }
+    }
+    </script>
 </body>
 </html>

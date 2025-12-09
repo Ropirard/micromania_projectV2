@@ -7,6 +7,7 @@ use JulienLinard\Doctrine\Mapping\Column;
 use JulienLinard\Doctrine\Mapping\Entity;
 use JulienLinard\Doctrine\Mapping\ManyToOne;
 use JulienLinard\Doctrine\Mapping\ManyToMany;
+use JulienLinard\Doctrine\Mapping\OneToMany;
 
 #[Entity(table: "games")]
 class Game
@@ -35,4 +36,7 @@ class Game
 
     #[ManyToMany(targetEntity: Plateform::class, joinTable: 'games_plateforms')]
     public array $plateforms = [];
+
+    #[OneToMany(targetEntity: Media::class, mappedBy: 'game')]
+    public array $media = [];
 }

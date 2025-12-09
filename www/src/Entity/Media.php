@@ -17,6 +17,7 @@ use JulienLinard\Doctrine\Mapping\Entity;
 use JulienLinard\Doctrine\Mapping\Column;
 use JulienLinard\Doctrine\Mapping\Id;
 use JulienLinard\Doctrine\Mapping\Index;
+use JulienLinard\Doctrine\Mapping\ManyToOne;
 
 #[Entity(table: 'media')]
 class Media
@@ -48,6 +49,9 @@ class Media
     
     #[Column(type: 'datetime', nullable: true)]
     public ?\DateTime $updated_at = null;
+    
+    #[ManyToOne(targetEntity: Game::class, inversedBy: 'media')]
+    public ?Game $game = null;
     
     /**
      * Retourne l'URL complète du média

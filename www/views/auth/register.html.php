@@ -1,3 +1,4 @@
+<?php use JulienLinard\Core\View\ViewHelper; ?>
 <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-white to-purple-500
 py-12 px-4">
     <div class="max-w-md w-full">
@@ -6,8 +7,8 @@ py-12 px-4">
                 <h2 class="text-4xl text-white font-bold">Inscription</h2>
                 <p class="text-indigo-100 mt-2">Création de votre compte</p>
             </div>
-            <form class="p-6 space-y-6" action="" method="post">
-                <input type="hidden" name="_token" value="<?= htmlspecialchars($csrf_token ?? '') ?>">
+            <form class="p-6 space-y-6" action="/register" method="POST">
+                <?= ViewHelper::csrfField() ?>
                 <?php if(isset($error)): ?>
                     <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg flex">
                         <p class="text-sm text-red-700"><?= $error ?></p>
