@@ -522,14 +522,6 @@ class AdminController extends Controller
         $genreIds = $request->getPost('genres', []);
         $plateformIds = $request->getPost('plateforms', []);
         
-        // Debug: Logger les données reçues
-        error_log("Titre reçu: " . ($title ?? 'NULL'));
-        error_log("Description: " . ($description ?? 'NULL'));
-        error_log("Prix: " . ($price ?? 'NULL'));
-        error_log("Stock: " . ($stock ?? 'NULL'));
-        error_log("Genres: " . json_encode($genreIds));
-        error_log("Plateformes: " . json_encode($plateformIds));
-        
         // Validation basique
         if (empty($title) || empty($description) || empty($price) || empty($stock)) {
             error_log("ERREUR: Champs manquants");
