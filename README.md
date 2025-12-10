@@ -108,8 +108,6 @@ chmod -R 775 www/public/uploads/
 
 ## Améliorations Futures
 
-- [ ] Suppression du système de clics obsolète
-- [ ] Amélioration de l'interface d'administration des jeux
 - [ ] Ajout d'un système de recherche avancée
 - [ ] Implementation d'un système de wishlist
 - [ ] Ajout de filtres sur le catalogue (genre, plateforme, prix)
