@@ -41,7 +41,7 @@ Le style chaotique et en manque de beauté est totalement prévu. J'avais comme 
 - Git installé
 - Port 8082 disponible (ou modifier dans `docker-compose.yml`)
 
-5. **Accéder à l'application**
+**Accéder à l'application**
 
 Ouvrir votre navigateur à l'adresse : `http://localhost:8082`
 
@@ -85,7 +85,7 @@ Vous avez accès à un bouton 'Cliquer' : cliquez dessus pour vous détendre (le
 3. **Valider** : Cliquez sur "Valider le panier" pour créer une commande
 4. **Suivre** : Consultez vos commandes dans "Historique" avec le statut de livraison
 
-## 🔧 Configuration
+## Configuration
 
 ### Base de Données
 
@@ -106,7 +106,7 @@ Les images des jeux sont stockées dans `www/public/uploads/`. Assurez-vous que 
 chmod -R 775 www/public/uploads/
 ```
 
-## 🚀 Améliorations Futures
+## Améliorations Futures
 
 - [ ] Suppression du système de clics obsolète
 - [ ] Amélioration de l'interface d'administration des jeux
@@ -117,11 +117,11 @@ chmod -R 775 www/public/uploads/
 - [ ] Gestion des stocks
 - [ ] Système de paiement
 
-## 👥 Auteurs
+## Auteurs
 
 - **Ropirard** - [GitHub](https://github.com/Ropirard)
 
-## 📄 Licence
+## Licence
 
 Ce projet est un projet éducatif/personnel.
 
