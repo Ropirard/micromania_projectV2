@@ -8,6 +8,8 @@ Le style chaotique et en manque de beauté est totalement prévu. J'avais comme 
 
 Il manque quelques fonctionnalités pourtant affichées dans les views tels que la wishlist ou les logs utilisateurs utilisées par les admins. Ces dernières seront probablement mises en fonction plus tard. (Il faut aussi que j'ajoute un système de filtres..)
 
+De plus, les Repository sont quasiment vide, tout est dans les Controller, ça aussi je dois m'en charger.
+
 ## ✨ Fonctionnalités
 
 ### Pour les Utilisateurs
