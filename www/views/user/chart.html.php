@@ -29,7 +29,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
                 </svg>
                 <p class="text-gray-600 text-lg mb-6">Votre panier est vide.</p>
-                <a href="/" class="inline-block px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors">
+                <a href="/" class="inline-block px-6 py-3 bg-gray-600 hover:bg-gray-500 text-whiteg font-semibold transition-colors">
                     Retour à l'accueil
                 </a>
             </div>

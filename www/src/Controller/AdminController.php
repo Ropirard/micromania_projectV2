@@ -61,7 +61,7 @@ class AdminController extends Controller
         $plateforms = $plateformRepository->findAll();
         
         $response = $this->view('admin/create', [
-            'title' => 'Ajouter un jeu',
+            'title' => 'WorstMicromania',
             'csrf_token' => $_SESSION['_csrf_token'] ?? '',
             'user' => $user,
             'genres' => $genres,
@@ -217,7 +217,7 @@ class AdminController extends Controller
         }
         
         return $this->view('admin/dashboard', [
-            'title' => 'Administration',
+            'title' => 'WorstMicromania',
             'csrf_token' => $_SESSION['_csrf_token'] ?? '',
             'user' => $user
         ]);
@@ -297,7 +297,7 @@ class AdminController extends Controller
         }
         
         return $this->view('admin/catalogue', [
-            'title' => 'Catalogue',
+            'title' => 'WorstMicromania',
             'csrf_token' => $_SESSION['_csrf_token'] ?? '',
             'user' => $user,
             'games' => $games
@@ -382,7 +382,7 @@ class AdminController extends Controller
         $plateforms = $plateformRepository->findAll();
         
         return $this->view('admin/catalogue_edit', [
-            'title' => 'Édition du catalogue',
+            'title' => 'WorstMicromania',
             'csrf_token' => $_SESSION['_csrf_token'] ?? '',
             'user' => $user,
             'games' => $games,
@@ -478,7 +478,7 @@ class AdminController extends Controller
         }
         
         $response = $this->view('admin/edit', [
-            'title' => 'Modifier un jeu',
+            'title' => 'WorstMicromania',
             'csrf_token' => $_SESSION['_csrf_token'] ?? '',
             'user' => $user,
             'game' => $game,
@@ -780,7 +780,7 @@ class AdminController extends Controller
         }
         
         return $this->view('admin/orders', [
-            'title' => 'Historique des Commandes',
+            'title' => 'WorstMicromania',
             'csrf_token' => $_SESSION['_csrf_token'] ?? '',
             'user' => $user,
             'orders' => $orders

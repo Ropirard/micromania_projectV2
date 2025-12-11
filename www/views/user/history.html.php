@@ -1,7 +1,16 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mon Historique - Micromania</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
 <div class="container mx-auto px-4 py-8">
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-3xl font-bold text-gray-800">Mon Historique</h1>
-        <a href="/" class="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors">
+        <a href="/" class="px-6 py-2 bg-red-600 hover:bg-blue-500 text-white font-semibold transition-colors">
             Retour à l'accueil
         </a>
     </div>
@@ -44,7 +53,11 @@
                             <!-- Statut de livraison -->
                             <div class="mt-2 inline-flex items-center">
                                 <?php
+                                // Correction de l'encodage si nécessaire
                                 $deliveryStatus = $order['delivery_status'] ?? 'En cours de préparation';
+                                if (!mb_check_encoding($deliveryStatus, 'UTF-8')) {
+                                    $deliveryStatus = mb_convert_encoding($deliveryStatus, 'UTF-8', 'ISO-8859-1');
+                                }
                                 $statusConfig = match($deliveryStatus) {
                                     'En cours de préparation' => [
                                         'bg' => 'bg-yellow-100',
@@ -123,3 +136,5 @@
         </div>
     <?php endif; ?>
 </div>
+</body>
+</html>

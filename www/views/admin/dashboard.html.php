@@ -1,7 +1,16 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= htmlspecialchars($title) ?> - Administration</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
 <header class="mt-8 ml-8 bg-gray-200 h-20 flex items-center justify-between">
     <div class="flex items-center">
         <div class="flex flex-col ml-8">
-            <h1 class="text-4xl font-bold text-gray-800"> <?= htmlspecialchars($title) ?><span class="text-xs">.com</span></h1>
+            <a href="/admin" class="text-4xl font-bold text-gray-800 hover:text-gray-600 transition-colors"> <?= htmlspecialchars($title) ?><span class="text-xs">.com</span></a>
             <?php if(!isset($_SESSION['auth_user'])): ?>
                 <a href="/login" class="text-xl text-blue-600 mt-2">Connexion</a>
             <?php endif; ?>
@@ -26,8 +35,7 @@
         <!-- Section gauche -->
         <section>
                 <a href="/admin/orders" class="text-xl text-gray-900 font-semibold mb-4 hover:text-indigo-600 block"> Historique des commandes des utilisateurs</a>
-                <a href="/wishlist" class="text-xl text-gray-500 mb-6 block"> Logs </a>
-                <a href="/catalogue" class="text-xl text-gray-500 mb-6 hover:text-indigo-100 block"> Vue Catalogue </a>
+                <a href="#" class="text-xl text-gray-500 mb-6 block"> Logs </a>
             <!-- Bloc supplémentaire -->
             <div class="mt-16">
                 <h3 class="text-lg font-semibold text-gray-800 mb-2">Clicker</h3>
@@ -117,3 +125,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+</body>
+</html>

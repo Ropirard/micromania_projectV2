@@ -3,31 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($title) ?> - Micromania</title>
+    <title><?= htmlspecialchars($title) ?> - Administration</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gradient-to-br from-indigo-50 via-white to-purple-50 min-h-screen">
-    <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-4">
-                    <a href="/admin" class="text-indigo-600 hover:text-gray-900 transition-colors">
-                        <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24">
-                            <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m4 12l8-8l8 8M6 10.5V19a1 1 0 0 0 1 1h3v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h3a1 1 0 0 0 1-1v-8.5"/>
-                        </svg>
-                    </a>
-                    <h1 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                        <?= htmlspecialchars($title) ?>
-                    </h1>
-                </div>
-                <div class="flex items-center space-x-6">
-                    <p class="text-sm text-gray-600">
-                        Bonjour, <span class="font-semibold text-gray-900"><?= htmlspecialchars($user->firstname ?? $user->email) ?></span>
-                    </p>
-                    <a href="/logout" onclick="return confirm('Êtes-vous sûr de vouloir vous déconnecter ?')" class="text-sm text-gray-600 hover:text-gray-900 transition-colors cursor-pointer">
-                        Déconnexion
-                    </a>
-                </div>
+<body class="bg-gray-50">
+<header class="mt-8 ml-8 bg-gray-200 h-20 flex items-center justify-between">
+    <div class="flex items-center">
+        <div class="flex flex-col ml-8">
+            <a href="/admin" class="text-4xl font-bold text-gray-800 hover:text-gray-600 transition-colors"> <?= htmlspecialchars($title) ?><span class="text-xs">.com</span></a>
+            <?php if (!isset($_SESSION['auth_user'])): ?>
+                <a href="/login" class="text-xl text-blue-600 mt-2">Connexion</a>
+            <?php endif; ?>
+        </div>
+        <?php if (!isset($_SESSION['auth_user'])): ?>
+            <a href="/register" class="text-5xl text-red-600 ml-16">Inscription</a>
+        <?php endif; ?>
+    </div>
+
+    <?php if (isset($_SESSION['auth_user'])): ?>
+        <div class="flex items-center gap-6 mr-8">
+            <span class="text-gray-700 font-medium">Bienvenue, <?= htmlspecialchars($user->firstname ?? 'Utilisateur') ?></span>
+            <a href="/logout" onclick="return confirm('Êtes-vous sûr de vouloir vous déconnecter ?')" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-colors inline-block cursor-pointer">
+                Déconnexion
+            </a>
+        </div>
+    <?php endif; ?>
+</header>
+
+<div class="min-h-screen bg-stone-100"><br>
+<main class="container mx-auto px-4 py-8">
             </div>
         </div>
     </header>
