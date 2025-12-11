@@ -1,4 +1,4 @@
-<?php use JulienLinard\Core\View\ViewHelper ?>
+<?php use JulienLinard\Core\View\ViewHelper; ?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
