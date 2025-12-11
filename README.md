@@ -4,6 +4,10 @@
 
 Le style chaotique et en manque de beauté est totalement prévu. J'avais comme intention de créer une interface disgracieuse, bien qu'elle peut nuire à l'immersion utilisateur (je ne compte pas recréer un tel monstre plus tard). 
 
+## A NOTER
+
+Il manque quelques fonctionnalités pourtant affichées dans les views tels que la wishlist ou les logs utilisateurs utilisées par les admins. Ces dernières seront probablement mises en fonction plus tard. (Il faut aussi que j'ajoute un système de filtres..)
+
 ## ✨ Fonctionnalités
 
 ### Pour les Utilisateurs
@@ -16,7 +20,7 @@ Le style chaotique et en manque de beauté est totalement prévu. J'avais comme 
 - **Historique des commandes** :
   - Consultation de toutes les commandes validées
   - Suivi du statut de livraison (En cours de préparation, Expédiée, Livrée)
-- **Catalogue** : Navigation et recherche dans le catalogue de jeux
+- **Catalogue** : Navigation dans le catalogue de jeux
 
 ### Pour les Administrateurs
 
