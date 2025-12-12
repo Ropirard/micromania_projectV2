@@ -10,6 +10,8 @@ Il manque quelques fonctionnalités pourtant affichées dans les views tels que 
 
 De plus, les Repository sont quasiment vide, tout est dans les Controller, ça aussi je dois m'en charger.
 
+NOTE IMPORTANTE : j'ai remarqué à la fin que j'ai appelé "chart" ce que je voulais appeler "cart" (tranduction de "panier"), mille excuses.
+
 ## ✨ Fonctionnalités
 
 ### Pour les Utilisateurs
